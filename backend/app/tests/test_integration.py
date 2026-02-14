@@ -53,9 +53,17 @@ class TestAPIEndpointsExist:
             transport=ASGITransport(app=app),
             base_url="http://test"
         ) as client:
+            # Create a user first
+            user_response = await client.post(
+                "/api/users",
+                json={"email": "ordertest@example.com", "name": "Order Test"}
+            )
+            user_id = user_response.json()["id"]
+            
+            # Now create an order
             response = await client.post(
                 "/api/orders",
-                json={"user_id": "00000000-0000-0000-0000-000000000000"}
+                json={"user_id": user_id}
             )
             assert response.status_code != 404
 
@@ -66,8 +74,21 @@ class TestAPIEndpointsExist:
             transport=ASGITransport(app=app),
             base_url="http://test"
         ) as client:
+            # Create user and order first
+            user_response = await client.post(
+                "/api/users",
+                json={"email": "paytest@example.com", "name": "Pay Test"}
+            )
+            user_id = user_response.json()["id"]
+            
+            order_response = await client.post(
+                "/api/orders",
+                json={"user_id": user_id}
+            )
+            order_id = order_response.json()["id"]
+            
             response = await client.post(
-                "/api/orders/00000000-0000-0000-0000-000000000000/pay"
+                f"/api/orders/{order_id}/pay"
             )
             assert response.status_code != 404
 
@@ -78,7 +99,20 @@ class TestAPIEndpointsExist:
             transport=ASGITransport(app=app),
             base_url="http://test"
         ) as client:
+            # Create user and order first
+            user_response = await client.post(
+                "/api/users",
+                json={"email": "canceltest@example.com", "name": "Cancel Test"}
+            )
+            user_id = user_response.json()["id"]
+            
+            order_response = await client.post(
+                "/api/orders",
+                json={"user_id": user_id}
+            )
+            order_id = order_response.json()["id"]
+            
             response = await client.post(
-                "/api/orders/00000000-0000-0000-0000-000000000000/cancel"
+                f"/api/orders/{order_id}/cancel"
             )
             assert response.status_code != 404
