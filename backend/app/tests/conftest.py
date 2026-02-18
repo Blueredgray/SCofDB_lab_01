@@ -1,8 +1,9 @@
 """Pytest configuration and fixtures."""
 
 import os
-# Set test database URL BEFORE any app imports
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+
+if "DATABASE_URL" not in os.environ:
+    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
 import asyncio
 import pytest
