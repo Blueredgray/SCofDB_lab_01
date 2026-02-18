@@ -10,7 +10,7 @@ DATABASE_URL = os.getenv(
 )
 
 # For SQLite in-memory databases, use shared cache to allow multiple connections
-# to see the same data
+# to see the same data (important when conftest.py sets DATABASE_URL)
 _engine_url = DATABASE_URL
 if _engine_url.startswith("sqlite") and ":memory:" in _engine_url:
     if "cache=shared" not in _engine_url:
@@ -20,22 +20,29 @@ if _engine_url.startswith("sqlite") and ":memory:" in _engine_url:
 engine = create_async_engine(_engine_url, echo=True)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
-# Track if tables have been initialized
-_tables_initialized = False
+# Track if tables have been initialized for SQLite
+_sqlite_tables_initialized = False
 
 
 async def init_sqlite_tables():
-    """Initialize tables for SQLite databases (used in tests)."""
-    global _tables_initialized
-    if _tables_initialized:
+    """Initialize tables for SQLite databases (used in local tests)."""
+    global _sqlite_tables_initialized
+    if _sqlite_tables_initialized:
         return
     
     if not DATABASE_URL.startswith("sqlite"):
         return
     
-    _tables_initialized = True
+    _sqlite_tables_initialized = True
     
     async with engine.begin() as conn:
+        # Drop old tables that might have wrong schema (from conftest.py or previous runs)
+        # These tables use 'status TEXT' instead of 'status_id INTEGER'
+        await conn.execute(text("DROP TABLE IF EXISTS order_status_history"))
+        await conn.execute(text("DROP TABLE IF EXISTS order_items"))
+        await conn.execute(text("DROP TABLE IF EXISTS orders"))
+        # Keep users table - schema is compatible
+        
         # Create order_statuses table (PostgreSQL-compatible schema)
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS order_statuses (
@@ -54,7 +61,7 @@ async def init_sqlite_tables():
             ('completed')
         """))
         
-        # Create users table
+        # Create users table if not exists
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
@@ -102,10 +109,11 @@ async def init_sqlite_tables():
         """))
 
 
-async def get_db() -> AsyncSession:
+async def get_db():
     """Dependency for getting database session."""
     # Initialize tables for SQLite on first connection
-    await init_sqlite_tables()
+    if DATABASE_URL.startswith("sqlite"):
+        await init_sqlite_tables()
     
     async with SessionLocal() as session:
         try:
@@ -114,25 +122,6 @@ async def get_db() -> AsyncSession:
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()
-
-
-# Initialize tables at module import time for SQLite
-# This is needed because tests may import db.py before test_engine fixture runs
-if DATABASE_URL.startswith("sqlite"):
-    import asyncio
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If loop is already running, schedule init for later
-            asyncio.create_task(init_sqlite_tables())
-        else:
-            # If no loop running, run init synchronously
-            loop.run_until_complete(init_sqlite_tables())
-    except RuntimeError:
-        # No event loop available, will init on first get_db call
-        pass
 
 
 # backend/app/infrastructure/db.py
@@ -162,5 +151,5 @@ class Database:
         async with self.pool.acquire() as conn:
             return await conn.fetchrow(query, *args)
 
-# Глобальный экземпляр
+# Global instance
 db = Database()

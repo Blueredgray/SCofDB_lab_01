@@ -1,4 +1,4 @@
-"""Реализация репозиториев с использованием SQLAlchemy."""
+"""Repository implementations using SQLAlchemy."""
 
 import uuid
 from datetime import datetime
@@ -13,7 +13,7 @@ from app.domain.user import User
 from app.domain.order import Order, OrderItem, OrderStatus, OrderStatusChange
 
 
-def _convert_decimal(value):
+def _to_float(value):
     """Convert Decimal to float for SQLite compatibility."""
     if isinstance(value, Decimal):
         return float(value)
@@ -21,7 +21,7 @@ def _convert_decimal(value):
 
 
 class UserRepository:
-    """Репозиторий для User."""
+    """Repository for User."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -68,7 +68,7 @@ class UserRepository:
 
 
 class OrderRepository:
-    """Репозиторий для Order."""
+    """Repository for Order."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -92,7 +92,7 @@ class OrderRepository:
             "id": str(order.id), 
             "user_id": str(order.user_id),
             "status": order.status.value, 
-            "total_amount": _convert_decimal(order.total_amount),
+            "total_amount": _to_float(order.total_amount),
             "created_at": order.created_at
         })
 
@@ -110,7 +110,7 @@ class OrderRepository:
                 "id": str(item.id), 
                 "order_id": str(order.id),
                 "product_name": item.product_name, 
-                "price": _convert_decimal(item.price),
+                "price": _to_float(item.price),
                 "quantity": item.quantity
             })
             
